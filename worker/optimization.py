@@ -90,8 +90,13 @@ class XtbOptimizer(object):
         else:
             return None, None, None
 
-    def optimize(self,
-                 mol_block: str = ''):
+    def save_summary(self, df, cid):
+        summary_csv = os.path.join(self.projectdir, '{}_xtbopt.csv'.format(cid))
+        df.to_csv(summary_csv)
+        subprocess.run(['gzip', summary_csv])
+
+    def run(self,
+            mol_block: str = ''):
         mol_opt = self.optimize(mol_block)
         mol_opt_block = Chem.MolToMolBlock(mol_opt)
         E, H, G = self.valid_freq(mol_opt_block)
