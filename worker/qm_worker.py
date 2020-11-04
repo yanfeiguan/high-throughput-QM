@@ -42,7 +42,7 @@ class QmWorker(object):
         remaining = self.wall_time - (time_now - self.start_time) - buffer
         return remaining
 
-    def run_qm(self, molblock, tmpdirname, solvent='dimethylsulfoxide'):
+    def run_qm(self, molblock, solvent='dimethylsulfoxide'):
         """ Given an rdkit.Mol object with an optimized, minimum energy conformer
         ID, write a gaussian input file using openbabel to the scratch folder """
 

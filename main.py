@@ -70,12 +70,20 @@ class JobWrapper(object):
                 rmsd = AllChem.GetBestRMS(optimized_success.iloc[i]['mol'], optimized_success.iloc[j]['mol'])
                 if rmsd < self.optimization_rmsd:
                     baned[j] = True
-        optimized_success = optimized_success[~baned]
+        optimized_success = optimized_success[~baned].drop('Error', axis=1)
 
         optimized_mols['mol'] = optimized_mols.mol.apply(lambda x: Chem.MolToMolBlock(x))
         self.optimizer.save_summary(optimized_mols, cid)
 
         return optimized_success
+
+    def batch_qm(self, mols, conformer_ids):
+        for mol, confId in zip(mols, conformer_ids):
+            mol_block = Chem.MolToMolBlock(mol)
+
+            mol, nmr = self.qm_worker.run_qm(mol_block)
+
+
 
     def run(self):
 
@@ -107,6 +115,11 @@ class JobWrapper(object):
         mol, conformer_ids = self.conformer_generator.gen_confs(smiles)
         mol.SetProp('_Name', str(cid))
         optimized_success = self.batch_optimization(mol, conformer_ids)
+
+        optimized_mols = optimized_success['mol'].tolist()
+        conformer_ids = optimized_success['confId'].tolist()
+
+        qm_success = self.batch_qm(optimized_mols, conformer_ids)
 
         runner = GaussianRunner(smiles, cid)
         molstr, enthalpy, freeenergy, scfenergy, log = runner.process()
