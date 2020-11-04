@@ -126,12 +126,13 @@ class G16Log:
     def GetCoords(self):
         data = cclib.io.ccread(self.file)
         self.coords = data.atomcoords[-1]
+        self.natom = data.natom
 
     def GetNMR(self):
         NMR = []
         with open(self.file, 'r') as fh:
             for line in fh:
-                if len(NMR) == len(self.AtomsNum): break
+                if len(NMR) == len(self.natom): break
                 m = re.search('Isotropic\s*=\s*(-?\d+\.\d+)', line)
                 if not m: continue
                 NMR.append(float(m.group(1)))

@@ -16,7 +16,7 @@ logging.getLogger("cclib").setLevel(30)
 class QmWorker(object):
 
     def __init__(self,
-                 qm_cmd='PATH=/opt/g16/:/opt/gv:$PATH g16root=/opt; . /opt/g16/bsd/g16.profile && g16 < test.gjf',
+                 qm_cmd="g16",
                  wall_time=172800,      #2*24*3600
                  nprocs=8,
                  mem='32000mb',
@@ -40,7 +40,7 @@ class QmWorker(object):
         buffer = timedelta(seconds=buffer)
         time_now = datetime.now()
         remaining = self.wall_time - (time_now - self.start_time) - buffer
-        return remaining
+        return remaining.total_seconds()
 
     def run_qm(self, molblock, solvent='dimethylsulfoxide'):
         """ Given an rdkit.Mol object with an optimized, minimum energy conformer
@@ -50,7 +50,7 @@ class QmWorker(object):
         name = mol.GetProp('_Name')
 
         with tempfile.TemporaryDirectory(dir=self.scratchdir) as running_dir:
-            gjf = os.path.join(running_dir + '{}.gjf'.format(name))
+            gjf = os.path.join(running_dir, '{}.gjf'.format(name))
             with tempfile.NamedTemporaryFile('wt', suffix='.sdf', dir=running_dir) as sdf_file:
                 writer = Chem.SDWriter(sdf_file.name)
                 writer.write(mol)
@@ -79,6 +79,8 @@ class QmWorker(object):
                 nmr = log.NMR
             else:
                 raise RuntimeError('Gaussian calculation for NMR failed')
+
+            print(nmr)
 
             project_gjf = os.path.join(self.projectdir, '{}.nmr.gjf'.format(name))
             project_log = os.path.join(self.projectdir, '{}.nmr.log'.format(name))
@@ -115,12 +117,13 @@ class QmWorker(object):
         return mol
 
 
-if __name__ == '__name__':
+if __name__ == '__main__':
     worker = QmWorker()
     mol = Chem.MolFromSmiles('C')
     from rdkit.Chem import AllChem
     AllChem.EmbedMolecule(mol, AllChem.ETKDG())
-    mol = Chem.AddHs(mol)
+    mol = Chem.AddHs(mol, addCoords=True)
     mol.SetProp('_Name', 'test')
     molblock = Chem.MolToMolBlock(mol)
+    print(molblock)
     worker.run_qm(molblock)
