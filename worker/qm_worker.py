@@ -16,12 +16,12 @@ logging.getLogger("cclib").setLevel(30)
 class QmWorker(object):
 
     def __init__(self,
-                 qm_cmd =  'module load gaussian/G16B && g16',
+                 qm_cmd='PATH=/opt/g16/:/opt/gv:$PATH g16root=/opt; . /opt/g16/bsd/g16.profile && g16 < test.gjf',
                  wall_time=172800,      #2*24*3600
-                 nprocs=18,
-                 mem='40GB',
-                 scratchdir='/tmp/scratch',
-                 projectdir='/projects/cooptimasoot/psj_bde/',
+                 nprocs=8,
+                 mem='32000mb',
+                 scratchdir='/scratch/yanfeig',
+                 projectdir='/home/yanfeig/nmr/test',
                  gaussian_timeout=86400):
         """ Class to handle the overall temporary directory management for
         running Gaussian on Eagle """
@@ -57,8 +57,8 @@ class QmWorker(object):
                 writer.close()
 
                 header1 = [
-                    '%MEM={}'.format(self.mem),
-                    '%nprocshared={}'.format(self.nprocs),
+                    #'%MEM={}'.format(self.mem),
+                    #'%nprocshared={}'.format(self.nprocs),
                     '#mPW1PW91/6-31+G(d,p) scf=(xqc,maxconventionalcycles=400) nmr=giao nosymm SCRF=(solvent={})'.format(solvent)]
 
                 subprocess.run(
@@ -113,3 +113,14 @@ class QmWorker(object):
             assert length <= max_length, "bond greater than maximum covalent length"
 
         return mol
+
+
+if __name__ == '__name__':
+    worker = QmWorker()
+    mol = Chem.MolFromSmiles('C')
+    from rdkit.Chem import AllChem
+    AllChem.EmbedMolecule(mol, AllChem.ETKDG())
+    mol = Chem.AddHs(mol)
+    mol.SetProp('_Name', 'test')
+    molblock = Chem.MolToMolBlock(mol)
+    worker.run_qm(molblock)
