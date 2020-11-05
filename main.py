@@ -1,6 +1,7 @@
 import psycopg2
 import time
 import socket
+import subprocess
 
 from rdkit import Chem
 from rdkit.Chem import AllChem
@@ -78,10 +79,28 @@ class JobWrapper(object):
         return optimized_success
 
     def batch_qm(self, mols, conformer_ids):
+        qm_results = []
+        timeout = False
         for mol, confId in zip(mols, conformer_ids):
             mol_block = Chem.MolToMolBlock(mol)
+            try:
+                #mol, nmr, scf = self.qm_worker.run_qm(mol_block)
+                # for developing only
+                nmr = [1] * mol.GetNumAtoms()
+                scf = 40
 
-            mol, nmr = self.qm_worker.run_qm(mol_block)
+                qm_results.append([confId, mol, nmr, scf, np.nan])
+            except subprocess.TimeoutExpired:
+                timeout = True
+                break
+            except Exception as e:
+                qm_results.append([confId, mol, np.nan, e])
+
+        qm_results = pd.DataFrame(qm_results, columns=['confId', 'mol', 'NMR', 'scf', 'Error'])
+
+
+
+
 
 
 

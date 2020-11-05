@@ -103,7 +103,7 @@ class G16Log:
         if not self.termination:
             self.GetError()
         else:
-            self.GetCoords()
+            self.cclib()
             self.GetNMR()
 
     def GetTermination(self):
@@ -123,16 +123,17 @@ class G16Log:
                     return True
             self.error = None
 
-    def GetCoords(self):
+    def cclib(self):
         data = cclib.io.ccread(self.file)
         self.coords = data.atomcoords[-1]
         self.natom = data.natom
+        self.scf = data.scfenergies[-1]
 
     def GetNMR(self):
         NMR = []
         with open(self.file, 'r') as fh:
             for line in fh:
-                if len(NMR) == len(self.natom): break
+                if len(NMR) == self.natom: break
                 m = re.search('Isotropic\s*=\s*(-?\d+\.\d+)', line)
                 if not m: continue
                 NMR.append(float(m.group(1)))

@@ -77,19 +77,18 @@ class QmWorker(object):
                 coords = log.coords
                 mol = self.assign_coords_to_mol(mol, coords)
                 nmr = log.NMR
+                scf = log.scf / 27.2114
             else:
                 raise RuntimeError('Gaussian calculation for NMR failed')
-
-            print(nmr)
 
             project_gjf = os.path.join(self.projectdir, '{}.nmr.gjf'.format(name))
             project_log = os.path.join(self.projectdir, '{}.nmr.log'.format(name))
 
             shutil.move(gjf, project_gjf)
             shutil.move(scratch_log, project_log)
-            subprocess.run(['gzip', project_log, project_gjf])
+            subprocess.run(['gzip', '-f', project_log, project_gjf])
 
-        return mol, nmr
+        return mol, nmr, scf
 
     @staticmethod
     def assign_coords_to_mol(mol, coords):
@@ -125,5 +124,4 @@ if __name__ == '__main__':
     mol = Chem.AddHs(mol, addCoords=True)
     mol.SetProp('_Name', 'test')
     molblock = Chem.MolToMolBlock(mol)
-    print(molblock)
     worker.run_qm(molblock)
