@@ -17,12 +17,11 @@ class QmWorker(object):
 
     def __init__(self,
                  qm_cmd="g16",
-                 wall_time=172800,      #2*24*3600
+                 wall_time=48,      #2*24*3600
                  nprocs=8,
                  mem='32000mb',
                  scratchdir='/scratch/yanfeig',
-                 projectdir='/home/yanfeig/nmr/test',
-                 gaussian_timeout=86400):
+                 projectdir='/home/yanfeig/nmr/test'):
         """ Class to handle the overall temporary directory management for
         running Gaussian on Eagle """
 
@@ -34,7 +33,6 @@ class QmWorker(object):
         self.mem = mem
         self.scratchdir = scratchdir
         self.projectdir = projectdir
-        self.gaussian_timeout = gaussian_timeout
 
     def remaining_wall_time(self, buffer=120):
         buffer = timedelta(seconds=buffer)
@@ -69,13 +67,12 @@ class QmWorker(object):
 
             env = os.environ.copy()
             env['GAUSS_SCRDIR'] = running_dir
-
             subprocess.run(cmd, shell=True, env=env, timeout=self.remaining_wall_time())
-
             log = G16Log(scratch_log)
             if log.termination:
                 coords = log.coords
                 mol = self.assign_coords_to_mol(mol, coords)
+                mol_block = Chem.MolToMolBlock(mol)
                 nmr = log.NMR
                 scf = log.scf / 27.2114
             else:
@@ -88,7 +85,7 @@ class QmWorker(object):
             shutil.move(scratch_log, project_log)
             subprocess.run(['gzip', '-f', project_log, project_gjf])
 
-        return mol, nmr, scf
+        return mol_block, nmr, scf
 
     @staticmethod
     def assign_coords_to_mol(mol, coords):
@@ -124,4 +121,5 @@ if __name__ == '__main__':
     mol = Chem.AddHs(mol, addCoords=True)
     mol.SetProp('_Name', 'test')
     molblock = Chem.MolToMolBlock(mol)
-    worker.run_qm(molblock)
+    mol, nmr, scf = worker.run_qm(molblock)
+    print(scf)

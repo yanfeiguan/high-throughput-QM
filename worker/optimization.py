@@ -2,6 +2,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+from datetime import datetime, timedelta
 
 import numpy as np
 from rdkit import Chem
@@ -10,11 +11,16 @@ from worker.file_parser import XtbLog
 
 
 class XtbOptimizer(object):
+
     def __init__(self,
                  xtb_path='xtb',
                  scratchdir='',
                  projectdir='',
+                 wall_time=48,  #2*24*3600
                  ):
+        self.start_time = datetime.now()
+        self.wall_time = timedelta(hours=wall_time)
+
         self.xtb_path = xtb_path
         self.scratchdir = os.path.join(scratchdir)
         self.projectdir = os.path.join(projectdir, 'xtb')
@@ -23,6 +29,12 @@ class XtbOptimizer(object):
 
         if not os.path.isdir(self.projectdir):
             os.mkdir(self.projectdir)
+
+    def remaining_wall_time(self, buffer=120):
+        buffer = timedelta(seconds=buffer)
+        time_now = datetime.now()
+        remaining = self.wall_time - (time_now - self.start_time) - buffer
+        return remaining.total_seconds()
 
     def optimize(self,
                  mol_block: str = '') -> Chem.Mol:
@@ -40,7 +52,9 @@ class XtbOptimizer(object):
                                  os.path.join(running_dir, '{}.sdf'.format(name)),
                                  '-opt',
                                  '--ceasefiles',
-                                 '--namespace', os.path.join(running_dir, name)], stdout=opt_log, stderr=opt_log)
+                                 '--namespace', os.path.join(running_dir, name)],
+                                stdout=opt_log, stderr=opt_log,
+                                timeout=self.remaining_wall_time())
 
             opt_sdf = os.path.join(running_dir, '{}.xtbopt.sdf'.format(name))
             new_opt_sdf = os.path.join(self.projectdir, '{}.xtbopt.sdf'.format(name))
@@ -72,7 +86,9 @@ class XtbOptimizer(object):
                                  os.path.join(running_dir, '{}.sdf'.format(name)),
                                  '--hess',
                                  '--ceasefiles',
-                                 '--namespace', os.path.join(running_dir, name)], stdout=freq_log, stderr=freq_log)
+                                 '--namespace', os.path.join(running_dir, name)],
+                                stdout=freq_log, stderr=freq_log,
+                                timeout=self.remaining_wall_time())
 
             freq_log = os.path.join(running_dir, '{}.xtbfreq.log'.format(name))
             log = XtbLog(freq_log)
@@ -102,7 +118,7 @@ class XtbOptimizer(object):
         E, H, G = self.valid_freq(mol_opt_block)
 
         if E:
-            return mol_opt, E, H, G
+            return mol_opt_block, E, H, G
         else:
             raise RuntimeError('optimization with GFN_XTB failed')
 

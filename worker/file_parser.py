@@ -137,4 +137,4 @@ class G16Log:
                 m = re.search('Isotropic\s*=\s*(-?\d+\.\d+)', line)
                 if not m: continue
                 NMR.append(float(m.group(1)))
-        self.NMR = np.array(NMR)
+        self.NMR = NMR
