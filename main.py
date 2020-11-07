@@ -17,7 +17,7 @@ dbparams = {
     'user': 'nmruser',
     'password': '123456',
     'host': 'localhost',
-    'port': 5432,
+    'port': '',
 }
 
 R = 0.001987
@@ -55,6 +55,32 @@ class JobWrapper(object):
             dbparams['host'],
             dbparams['dbname']
         )
+        self.init_conformers()
+
+    @staticmethod
+    def init_conformers():
+        with psycopg2.connect(**dbparams) as conn:
+            with conn.cursor() as cur:
+                cur.execute("select exists(select * from information_schema.tables where table_name=%s)", ('conformers',))
+                if not cur.fetchone()[0]:
+                    cur.execute("""
+                        CREATE table conformers (
+                            cid integer, 
+                            confid integer,
+                            mol_opt text,
+                            e numeric,
+                            h numeric,
+                            g numeric,
+                            error_opt text,
+                            status_opt text default 'initialized',
+                            mol_qm text,
+                            nmr numeric[],
+                            scf numeric,
+                            error_qm text,
+                            status_qm text default 'initialized',
+                            primary key (cid, confid)
+                        )
+                    """)
 
     def batch_optimization(self, conformers, conformer_ids):
         optimized_mols = []
