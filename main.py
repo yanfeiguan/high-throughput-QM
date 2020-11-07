@@ -96,7 +96,7 @@ class JobWrapper(object):
         if finished + 1 < len(conformers):      # timeout
             optimized_mols.extend([[conformer_ids[i], conformers[i], np.nan, np.nan, np.nan, np.nan, 'initialized'] for i in range(finished, len(conformer_ids))])
 
-        optimized_mols = pd.DataFrame(optimized_mols, columns=['confId', 'mol_opt', 'e', 'h', 'g', 'error_opt', 'status_opt']).astype({'e': float, 'h': float, 'h': float})
+        optimized_mols = pd.DataFrame(optimized_mols, columns=['confid', 'mol_opt', 'e', 'h', 'g', 'error_opt', 'status_opt']).astype({'e': float, 'h': float, 'h': float})
 
         return optimized_mols, finished + 1 < len(conformers)
 
@@ -229,9 +229,12 @@ class JobWrapper(object):
 
             done_opt_df, timeout = self.batch_optimization(conformers, conformer_ids)
 
-            if not timeout:
-                optimized_mols, conformer_ids = done_opt_df[['mol_opt', 'confid']].values.tolist()
-            # FIXME timeout
+            if timeout:
+                self.update_one_entry(cid, 'timeout')
+                self.update_conformers(done_opt_df, cid)
+                return cid, False
+
+            optimized_mols, conformer_ids = done_opt_df[['mol_opt', 'confid']].values.tolist()
 
         elif status == 'timeout':
             conformer_df = self.grab_conformers(cid)
@@ -240,9 +243,12 @@ class JobWrapper(object):
             if len(optimized_mols_df) != len(conformer_df):
                 conformers, conformer_ids = conformer_df[conformer_df.status_opt == 'initialized'][['mol_opt', 'confid']].values.tolist()
                 done_opt_df, timeout = self.batch_optimization(conformers, conformer_ids)
-                done_opt_df['status_qm'] = 'initialized'
-
                 done_opt_df = pd.concat([optimized_mols_df, done_opt_df])
+
+                if timeout:
+                    self.update_one_entry(cid, 'timeout')
+                    self.update_conformers(done_opt_df, cid)
+                    return cid, False
             else:
                 done_opt_df = optimized_mols_df
 
@@ -256,15 +262,17 @@ class JobWrapper(object):
         else:
             done_qm_df = qm_mols_df
 
-        if qm_columns[0] in done_opt_df.columns:
-            done_opt_df = done_opt_df.drop(qm_columns, axis=1)
-
         done_df = done_opt_df.join(done_qm_df.set_index('condid'), on='confid')
+        self.update_conformers(done_df, cid)
+
+        if timeout:
+            self.updated_one_entry(cid, 'timeout')
+            return cid, False
+
         weighted_nmr, coords = self.weight_nmr(done_df)
-        self.update_conformers(done_df)
         self.update_entry(cid, 'finished', weighted_nmr, coords)
 
-        return cid
+        return cid, True
                 
 
 if __name__ == "__main__":
@@ -276,20 +284,5 @@ if __name__ == "__main__":
     job_wrapper = JobWrapper(conformer_generator=conformer_generator,
                              optimizer=optimizer,
                              qm_worker=qm_worker)
-    
-    start_time = time.time()
-    job_wrapper.run()
 
-    '''
-    # Add a random delay to avoid race conditions at the start of the job
-    time.sleep(random.uniform(0, 1*60))
-    
-    while (time.time() - start_time) < (86400 * 9):  # Time in days
-        
-
-        try:
-            run_optimization()
-            
-        except psycopg2.OperationalError:
-            time.sleep(5 + random.uniform(0, 60))
-    '''
+    cid, finished = job_wrapper.run()
