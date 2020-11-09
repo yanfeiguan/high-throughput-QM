@@ -105,12 +105,11 @@ class JobWrapper(object):
         optimized_mols = optimized_mols.copy()
         min_E, min_H, min_G = optimized_mols[optimized_mols.status_qm == 'finished'][['e', 'h', 'g']].min().values
         for e, min_e in zip(['e', 'h', 'g'], [min_E, min_H, min_G]):
-            min_e = 'min_' + e
-            optimized_mols[min_e] = optimized_mols[e].apply(lambda x: (x - min_e) * 23.0609)
+            optimized_mols['min_' + e] = optimized_mols[e].apply(lambda x: (x - min_e) * 23.0609)
 
         optimized_mols = optimized_mols.sort_values(by='min_g')
         coords = optimized_mols[(optimized_mols.status_qm == 'finished') & (optimized_mols.g == min_G)].iloc[0]['mol_opt']
-
+        optimized_mols['mol_opt'] = optimized_mols.mol_opt.apply(lambda x: Chem.MolFromMolBlock(x))
         # postrmsd filter
         baned = np.zeros(len(optimized_mols)).astype(bool)
         for i in range(len(optimized_mols)):
@@ -119,7 +118,7 @@ class JobWrapper(object):
             for j in range(i+1, len(optimized_mols)):
                 if not pd.isna(optimized_mols.iloc[j]['error_opt']) or baned[j]:
                     continue
-                rmsd = AllChem.GetBestRMS(optimized_mols.iloc[i]['mol'], optimized_mols.iloc[j]['mol'])
+                rmsd = AllChem.GetBestRMS(optimized_mols.iloc[i]['mol_opt'], optimized_mols.iloc[j]['mol_opt'])
                 if rmsd < self.optimization_rmsd:
                     baned[j] = True
         coords_checked_df = optimized_mols[~baned]
@@ -127,7 +126,7 @@ class JobWrapper(object):
         nmr = coords_checked_df.nmr.apply(np.array).tolist()
         boltzmann_weight = boltzmann(coords_checked_df['min_g'].values)
 
-        weighted_nmr = sum([w*n for w, n in zip(boltzmann_weight, nmr) if not np.isnan(n)])
+        weighted_nmr = sum([w*n for w, n in zip(boltzmann_weight, nmr) if not np.any(np.isnan(n))]).tolist()
 
         return weighted_nmr, coords
 
@@ -153,6 +152,7 @@ class JobWrapper(object):
         return qm_mols, finished + 1 < len(mol_blocks)
 
     def update_conformers(self, conformers_df, cid):
+        conformers_df['cid'] = cid
         with psycopg2.connect(**dbparams) as conn:
             with conn.cursor() as cur:
                 cur.execute("""
@@ -168,14 +168,14 @@ class JobWrapper(object):
             if_exists='append'
         )
 
-    def update_one_entry(self, cid, status, nmr=None, coords=None):
+    @staticmethod
+    def update_one_entry(cid, status, nmr=None, coords=None):
         with psycopg2.connect(**dbparams) as conn:
             with conn.cursor() as cur:
                 cur.execute("""
                     UPDATE compound
-                    SET status = %s, 
-                        coords = %s, nmr = %s, 
-                    WHERE cid = %s;""", (status, coords, nmr, cid,)
+                    SET status = %s, coords = %s, nmr = %s 
+                    WHERE id = %s;""", (status, coords, nmr, cid,)
                 )
 
     @staticmethod
@@ -184,7 +184,7 @@ class JobWrapper(object):
             with conn.cursor() as cur:
                 cur.execute("""
                        WITH cte AS (
-                       SELECT id, smiles
+                       SELECT id, smiles, status
                        FROM compound
                        WHERE status = 'initialized' OR status = 'timeout'
                        ORDER BY id
@@ -197,7 +197,7 @@ class JobWrapper(object):
                                            node = %s
                        FROM cte
                        WHERE compound.id = cte.id
-                       RETURNING compound.id, compound.smiles, compound.status;
+                       RETURNING cte.id, cte.smiles, cte.status;
                        """, (socket.gethostname(),))
 
                 cid, smiles, status = cur.fetchone()
@@ -224,7 +224,7 @@ class JobWrapper(object):
 
             conformers = []
             for confId in conformer_ids:
-                mol.SetProp('_Name', cid + '_conf{}'.format(confId))
+                mol.SetProp('_Name', str(cid) + '_conf{}'.format(confId))
                 conformers.append(Chem.MolToMolBlock(mol, confId=confId))
 
             done_opt_df, timeout = self.batch_optimization(conformers, conformer_ids)
@@ -234,14 +234,14 @@ class JobWrapper(object):
                 self.update_conformers(done_opt_df, cid)
                 return cid, False
 
-            optimized_mols, conformer_ids = done_opt_df[['mol_opt', 'confid']].values.tolist()
+            optimized_mols, conformer_ids = zip(*done_opt_df[['mol_opt', 'confid']].values.tolist())
 
         elif status == 'timeout':
             conformer_df = self.grab_conformers(cid)
 
             optimized_mols_df = conformer_df[conformer_df.status_opt != 'initialized']
             if len(optimized_mols_df) != len(conformer_df):
-                conformers, conformer_ids = conformer_df[conformer_df.status_opt == 'initialized'][['mol_opt', 'confid']].values.tolist()
+                conformers, conformer_ids = zip(*conformer_df[conformer_df.status_opt == 'initialized'][['mol_opt', 'confid']].values.tolist())
                 done_opt_df, timeout = self.batch_optimization(conformers, conformer_ids)
                 done_opt_df = pd.concat([optimized_mols_df, done_opt_df])
 
@@ -253,7 +253,7 @@ class JobWrapper(object):
                 done_opt_df = optimized_mols_df
 
             done_qm_df = done_opt_df[done_opt_df.status_qm != 'initialized'].drop(opt_columns, axis=1)
-            optimized_mols, conformer_ids = done_opt_df[done_opt_df.status == 'initialized'][['mol_opt', 'confid']].values.tolist()
+            optimized_mols, conformer_ids = zip(*done_opt_df[done_opt_df.status == 'initialized'][['mol_opt', 'confid']].values.tolist())
 
         qm_mols_df, timeout = self.batch_qm(optimized_mols, conformer_ids)
 
@@ -262,15 +262,15 @@ class JobWrapper(object):
         else:
             done_qm_df = qm_mols_df
 
-        done_df = done_opt_df.join(done_qm_df.set_index('condid'), on='confid')
+        done_df = done_opt_df.join(done_qm_df.set_index('confid'), on='confid')
         self.update_conformers(done_df, cid)
 
         if timeout:
             self.updated_one_entry(cid, 'timeout')
             return cid, False
 
-        weighted_nmr, coords = self.weight_nmr(done_df)
-        self.update_entry(cid, 'finished', weighted_nmr, coords)
+        weighted_nmr, coords = self.postprocess(done_df)
+        self.update_one_entry(cid, 'finished', weighted_nmr, coords)
 
         return cid, True
                 
@@ -278,7 +278,7 @@ class JobWrapper(object):
 if __name__ == "__main__":
 
     conformer_generator = RdkitConformer()
-    optimizer = XtbOptimizer(xtb_path='xtb', scratchdir='/tmp/yanfei/', projectdir='/Users/yanfei/Projects/NMR/workflow/test')
+    optimizer = XtbOptimizer()
     qm_worker = QmWorker()
 
     job_wrapper = JobWrapper(conformer_generator=conformer_generator,

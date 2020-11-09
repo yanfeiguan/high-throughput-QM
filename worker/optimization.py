@@ -14,8 +14,8 @@ class XtbOptimizer(object):
 
     def __init__(self,
                  xtb_path='xtb',
-                 scratchdir='',
-                 projectdir='',
+                 scratchdir='/scratch/yanfeig',
+                 projectdir='/home/yanfeig/nmr/test',
                  wall_time=48,  #2*24*3600
                  ):
         self.start_time = datetime.now()
@@ -66,7 +66,7 @@ class XtbOptimizer(object):
 
         mol_opt = Chem.SDMolSupplier(new_opt_sdf, removeHs=False)[0]
         mol_opt.SetProp('_Name', name + '_xtbopt')
-        subprocess.run(['gzip', new_opt_log, new_opt_sdf])
+        subprocess.run(['gzip', '-f', new_opt_log, new_opt_sdf])
 
         return mol_opt
 
@@ -95,7 +95,7 @@ class XtbOptimizer(object):
 
             new_freq_log = os.path.join(self.projectdir, '{}.xtbfreq.log'.format(name))
             shutil.move(freq_log, new_freq_log)
-            subprocess.run(['gzip', new_freq_log])
+            subprocess.run(['gzip', '-f', new_freq_log])
 
         if log.termination:
             peaks = log.wavenum
@@ -109,7 +109,7 @@ class XtbOptimizer(object):
     def save_summary(self, df, cid):
         summary_csv = os.path.join(self.projectdir, '{}_xtbopt.csv'.format(cid))
         df.to_csv(summary_csv)
-        subprocess.run(['gzip', summary_csv])
+        subprocess.run(['gzip', '-f', summary_csv])
 
     def run(self,
             mol_block: str = ''):
