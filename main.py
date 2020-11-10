@@ -16,7 +16,7 @@ dbparams = {
     'dbname': 'nmrtest',
     'user': 'nmruser',
     'password': '123456',
-    'host': 'localhost',
+    'host': 'rmg',
     'port': '',
 }
 
@@ -56,6 +56,7 @@ class JobWrapper(object):
             dbparams['dbname']
         )
         self.init_conformers()
+        self.conn = psycopg2.connect(**dbparams)
 
     @staticmethod
     def init_conformers():
@@ -85,13 +86,13 @@ class JobWrapper(object):
     def batch_optimization(self, conformers, conformer_ids):
         optimized_mols = []
         for finished, (confId, mol_block) in enumerate(zip(conformer_ids, conformers)):
-            try:
-                mol_opt_block, E, H, G = self.optimizer.run(mol_block)
-                optimized_mols.append([confId, mol_opt_block, E, H, G, np.nan, 'finished'])
-            except subprocess.TimeoutExpired:
-                break
-            except Exception as e:
-                optimized_mols.append([confId, mol_block, np.nan, np.nan, np.nan, e, 'failed'])
+            #try:
+            mol_opt_block, E, H, G = self.optimizer.run(mol_block)
+            optimized_mols.append([confId, mol_opt_block, E, H, G, np.nan, 'finished'])
+            #except subprocess.TimeoutExpired:
+            #    break
+            #except Exception as e:
+            #    optimized_mols.append([confId, mol_block, np.nan, np.nan, np.nan, str(e), 'failed'])
 
         if finished + 1 < len(conformers):      # timeout
             optimized_mols.extend([[conformer_ids[i], conformers[i], np.nan, np.nan, np.nan, np.nan, 'initialized'] for i in range(finished, len(conformer_ids))])
@@ -133,17 +134,17 @@ class JobWrapper(object):
     def batch_qm(self, mol_blocks, conformer_ids):
         qm_mols = []
         for finished, (mol_block, confId) in enumerate(zip(mol_blocks, conformer_ids)):
-            try:
-                #mol_block, nmr, scf = self.qm_worker.run_qm(mol_block)
-                # for developing only
-                nmr = [1] * 14
-                scf = 40
+            #try:
+            mol_block, nmr, scf = self.qm_worker.run_qm(mol_block)
+            # for developing only
+            #nmr = [1] * 14
+            #scf = 40
 
-                qm_mols.append([confId, mol_block, nmr, scf, np.nan, 'finished'])
-            except subprocess.TimeoutExpired:
-                break
-            except Exception as e:
-                qm_mols.append([confId, mol_block, np.nan, np.nan, e, 'failed'])
+            qm_mols.append([confId, mol_block, nmr, scf, np.nan, 'finished'])
+            #except subprocess.TimeoutExpired:
+            #    break
+            #except Exception as e:
+            #    qm_mols.append([confId, mol_block, np.nan, np.nan, str(e), 'failed'])
 
         if finished + 1 < len(mol_blocks):      # timeout
             qm_mols.extend([[conformer_ids[i], mol_blocks[i], np.nan, np.nan, np.nan, 'initialized'] for i in range(finished, len(conformer_ids))])
@@ -233,8 +234,7 @@ class JobWrapper(object):
                 self.update_one_entry(cid, 'timeout')
                 self.update_conformers(done_opt_df, cid)
                 return cid, False
-
-            optimized_mols, conformer_ids = zip(*done_opt_df[['mol_opt', 'confid']].values.tolist())
+            optimized_mols, conformer_ids = zip(*done_opt_df[done_opt_df.status_opt == 'finished'][['mol_opt', 'confid']].values.tolist())
 
         elif status == 'timeout':
             conformer_df = self.grab_conformers(cid)
@@ -253,7 +253,7 @@ class JobWrapper(object):
                 done_opt_df = optimized_mols_df
 
             done_qm_df = done_opt_df[done_opt_df.status_qm != 'initialized'].drop(opt_columns, axis=1)
-            optimized_mols, conformer_ids = zip(*done_opt_df[done_opt_df.status == 'initialized'][['mol_opt', 'confid']].values.tolist())
+            optimized_mols, conformer_ids = zip(*done_opt_df[(done_opt_df.status_qm == 'initialized') & (done_opt_df.status_opt == 'finished')][['mol_opt', 'confid']].values.tolist())
 
         qm_mols_df, timeout = self.batch_qm(optimized_mols, conformer_ids)
 

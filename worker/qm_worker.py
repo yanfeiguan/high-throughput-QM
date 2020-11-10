@@ -20,7 +20,7 @@ class QmWorker(object):
                  wall_time=48,      #2*24*3600
                  nprocs=8,
                  mem='32000mb',
-                 scratchdir='/scratch/yanfeig',
+                 scratchdir=os.environ['WORKDIR'],
                  projectdir='/home/yanfeig/nmr/test'):
         """ Class to handle the overall temporary directory management for
         running Gaussian on Eagle """

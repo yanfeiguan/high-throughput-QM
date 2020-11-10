@@ -14,7 +14,7 @@ class XtbOptimizer(object):
 
     def __init__(self,
                  xtb_path='xtb',
-                 scratchdir='/scratch/yanfeig',
+                 scratchdir=os.environ['WORKDIR'],
                  projectdir='/home/yanfeig/nmr/test',
                  wall_time=48,  #2*24*3600
                  ):
@@ -120,7 +120,7 @@ class XtbOptimizer(object):
         if E:
             return mol_opt_block, E, H, G
         else:
-            raise RuntimeError('optimization with GFN_XTB failed')
+            raise RuntimeError('optimization with GFN_XTB failed due to imaginary frequency')
 
 
 if __name__ == '__main__':
