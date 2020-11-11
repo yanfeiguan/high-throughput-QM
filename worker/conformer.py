@@ -5,7 +5,7 @@ import numpy as np
 
 class RdkitConformer(object):
 
-    def __init__(self, max_conformers=200, min_conformers=10, e_threshold=2.5, rmsd_threshold=0.4):
+    def __init__(self, max_conformers=20, min_conformers=10, e_threshold=2.5, rmsd_threshold=0.4):
         self.max_conformers = max_conformers
         self.min_conformers = min_conformers
         self.e_threshold = e_threshold

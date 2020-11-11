@@ -4,7 +4,6 @@ import subprocess
 
 from sqlalchemy import create_engine
 import psycopg2
-from psycopg2 import sql
 from rdkit import Chem
 from rdkit.Chem import AllChem
 import numpy as np
@@ -17,7 +16,7 @@ dbparams = {
     'user': 'nmruser',
     'password': '123456',
     'host': 'rmg',
-    'port': '',
+    'port': '5432',
 }
 
 R = 0.001987
@@ -86,13 +85,14 @@ class JobWrapper(object):
     def batch_optimization(self, conformers, conformer_ids):
         optimized_mols = []
         for finished, (confId, mol_block) in enumerate(zip(conformer_ids, conformers)):
-            #try:
-            mol_opt_block, E, H, G = self.optimizer.run(mol_block)
-            optimized_mols.append([confId, mol_opt_block, E, H, G, np.nan, 'finished'])
-            #except subprocess.TimeoutExpired:
-            #    break
-            #except Exception as e:
-            #    optimized_mols.append([confId, mol_block, np.nan, np.nan, np.nan, str(e), 'failed'])
+            try:
+                mol_opt_block, E, H, G = self.optimizer.run(mol_block)
+                optimized_mols.append([confId, mol_opt_block, E, H, G, np.nan, 'finished'])
+
+            except subprocess.TimeoutExpired:
+                break
+            except Exception as e:
+                optimized_mols.append([confId, mol_block, np.nan, np.nan, np.nan, str(e), 'failed'])
 
         if finished + 1 < len(conformers):      # timeout
             optimized_mols.extend([[conformer_ids[i], conformers[i], np.nan, np.nan, np.nan, np.nan, 'initialized'] for i in range(finished, len(conformer_ids))])
@@ -134,17 +134,17 @@ class JobWrapper(object):
     def batch_qm(self, mol_blocks, conformer_ids):
         qm_mols = []
         for finished, (mol_block, confId) in enumerate(zip(mol_blocks, conformer_ids)):
-            #try:
-            mol_block, nmr, scf = self.qm_worker.run_qm(mol_block)
+            try:
+                mol_block, nmr, scf = self.qm_worker.run_qm(mol_block)
             # for developing only
             #nmr = [1] * 14
             #scf = 40
 
-            qm_mols.append([confId, mol_block, nmr, scf, np.nan, 'finished'])
-            #except subprocess.TimeoutExpired:
-            #    break
-            #except Exception as e:
-            #    qm_mols.append([confId, mol_block, np.nan, np.nan, str(e), 'failed'])
+                qm_mols.append([confId, mol_block, nmr, scf, np.nan, 'finished'])
+            except subprocess.TimeoutExpired:
+                break
+            except Exception as e:
+                qm_mols.append([confId, mol_block, np.nan, np.nan, str(e), 'failed'])
 
         if finished + 1 < len(mol_blocks):      # timeout
             qm_mols.extend([[conformer_ids[i], mol_blocks[i], np.nan, np.nan, np.nan, 'initialized'] for i in range(finished, len(conformer_ids))])
@@ -170,13 +170,13 @@ class JobWrapper(object):
         )
 
     @staticmethod
-    def update_one_entry(cid, status, nmr=None, coords=None):
+    def update_one_entry(cid, status, nmr=None, coords=None, error=None):
         with psycopg2.connect(**dbparams) as conn:
             with conn.cursor() as cur:
                 cur.execute("""
                     UPDATE compound
-                    SET status = %s, coords = %s, nmr = %s 
-                    WHERE id = %s;""", (status, coords, nmr, cid,)
+                    SET status = %s, coords = %s, nmr = %s, error = %s 
+                    WHERE id = %s;""", (status, coords, nmr, error, cid,)
                 )
 
     @staticmethod
@@ -218,9 +218,11 @@ class JobWrapper(object):
     def run(self):
 
         cid, smiles, status = self.grab_one_entry()
+        print(cid)
 
         if status == 'initialized':
             mol, conformer_ids = self.conformer_generator.gen_confs(smiles)
+            print(conformer_ids)
             mol.SetProp('_Name', str(cid))
 
             conformers = []
@@ -234,6 +236,11 @@ class JobWrapper(object):
                 self.update_one_entry(cid, 'timeout')
                 self.update_conformers(done_opt_df, cid)
                 return cid, False
+
+            if 'finished' not in done_opt_df.status_opt.tolist():
+                self.update_one_entry(cid, 'failed', error='no optimized conformers found')
+                return cid, False
+
             optimized_mols, conformer_ids = zip(*done_opt_df[done_opt_df.status_opt == 'finished'][['mol_opt', 'confid']].values.tolist())
 
         elif status == 'timeout':
@@ -285,4 +292,11 @@ if __name__ == "__main__":
                              optimizer=optimizer,
                              qm_worker=qm_worker)
 
-    cid, finished = job_wrapper.run()
+    import random
+
+    while True:  # Time in days
+        try:
+            cid, finished = job_wrapper.run()
+            print(cid, finished)
+        except psycopg2.OperationalError:
+            time.sleep(5 + random.uniform(0, 60))

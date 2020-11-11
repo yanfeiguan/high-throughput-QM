@@ -16,7 +16,7 @@ class XtbOptimizer(object):
                  xtb_path='xtb',
                  scratchdir=os.environ['WORKDIR'],
                  projectdir='/home/yanfeig/nmr/test',
-                 wall_time=48,  #2*24*3600
+                 wall_time=48,  # 2*24*3600
                  ):
         self.start_time = datetime.now()
         self.wall_time = timedelta(hours=wall_time)
@@ -48,21 +48,26 @@ class XtbOptimizer(object):
             writer.close()
 
             with open(os.path.join(running_dir, '{}.xtbopt.log'.format(name)), 'w') as opt_log:
-                subprocess.call([self.cmd,
-                                 os.path.join(running_dir, '{}.sdf'.format(name)),
-                                 '-opt',
-                                 '--ceasefiles',
-                                 '--namespace', os.path.join(running_dir, name)],
-                                stdout=opt_log, stderr=opt_log,
-                                timeout=self.remaining_wall_time())
-
-            opt_sdf = os.path.join(running_dir, '{}.xtbopt.sdf'.format(name))
-            new_opt_sdf = os.path.join(self.projectdir, '{}.xtbopt.sdf'.format(name))
-            shutil.move(opt_sdf, new_opt_sdf)
+                subprocess.run([self.cmd,
+                                os.path.join(running_dir, '{}.sdf'.format(name)),
+                                '--opt',
+                                '--ceasefiles',
+                                '--namespace', os.path.join(running_dir, name)],
+                               stdout=opt_log, stderr=opt_log,
+                               timeout=self.remaining_wall_time())
 
             opt_log = os.path.join(running_dir, '{}.xtbopt.log'.format(name))
             new_opt_log = os.path.join(self.projectdir, '{}.xtbopt.log'.format(name))
             shutil.move(opt_log, new_opt_log)
+            opt_sdf = os.path.join(running_dir, '{}.xtbopt.sdf'.format(name))
+            new_opt_sdf = os.path.join(self.projectdir, '{}.xtbopt.sdf'.format(name))
+            try:
+                shutil.move(opt_sdf, new_opt_sdf)
+            except FileNotFoundError:
+                new_sdf = os.path.join(self.projectdir, '{}.sdf'.format(name))
+                shutil.move(os.path.join(running_dir, '{}.sdf'.format(name)), new_sdf)
+                subprocess.run(['gzip', '-f', new_opt_log, new_sdf])
+                raise RuntimeError('optimization failed, please check {}.gz for more information'.format(new_opt_log))
 
         mol_opt = Chem.SDMolSupplier(new_opt_sdf, removeHs=False)[0]
         mol_opt.SetProp('_Name', name + '_xtbopt')
@@ -113,7 +118,10 @@ class XtbOptimizer(object):
 
     def run(self,
             mol_block: str = ''):
-        mol_opt = self.optimize(mol_block)
+        try:
+            mol_opt = self.optimize(mol_block)
+        except RuntimeError as e:
+            raise RuntimeError(e)
         mol_opt_block = Chem.MolToMolBlock(mol_opt)
         E, H, G = self.valid_freq(mol_opt_block)
 
@@ -134,7 +142,8 @@ if __name__ == '__main__':
 
     mol_block = Chem.MolToMolBlock(m)
 
-    optimizer = XtbOptimizer(xtb_path='xtb', scratchdir='/tmp/yanfei/', projectdir='/Users/yanfei/Projects/NMR/workflow/test')
+    optimizer = XtbOptimizer(xtb_path='xtb', scratchdir='/tmp/yanfei/',
+                             projectdir='/Users/yanfei/Projects/NMR/workflow/test')
     mol = optimizer.optimize(mol_block)
 
     mol_block = Chem.MolToMolBlock(mol)

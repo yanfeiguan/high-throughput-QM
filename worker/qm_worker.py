@@ -18,8 +18,8 @@ class QmWorker(object):
     def __init__(self,
                  qm_cmd="g16",
                  wall_time=48,      #2*24*3600
-                 nprocs=8,
-                 mem='32000mb',
+                 nprocs=16,
+                 mem='350000mb',
                  scratchdir=os.environ['WORKDIR'],
                  projectdir='/home/yanfeig/nmr/test'):
         """ Class to handle the overall temporary directory management for
@@ -55,9 +55,9 @@ class QmWorker(object):
                 writer.close()
 
                 header1 = [
-                    #'%MEM={}'.format(self.mem),
-                    #'%nprocshared={}'.format(self.nprocs),
-                    '#mPW1PW91/6-31+G(d,p) scf=(xqc,maxconventionalcycles=400) nmr=giao nosymm SCRF=(solvent={})'.format(solvent)]
+                    '%MEM={}'.format(self.mem),
+                    '%nprocshared={}'.format(self.nprocs),
+                    '#mPW1PW91/6-31G scf=(xqc,maxconventionalcycles=400) nmr=giao nosymm SCRF=(solvent={})'.format(solvent)]
 
                 subprocess.run(
                     ['obabel', sdf_file.name, '-O', gjf, '-xk', '\n'.join(header1)])
