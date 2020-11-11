@@ -8,9 +8,9 @@ SQL_HOST = 'rmg'
 SQL_PORT = '5432'
 
 # conformer searching parameters
-MIN_CONFORMER = 10
-MAX_CONFORMER = 20
-CONFORMER_THRESHOLD = 2.5                   # kcal/mol
+MIN_CONFORMERS = 10
+MAX_CONFORMERS = 20
+CONFORMER_E_THRESHOLD = 2.5                   # kcal/mol
 CONFORMER_RMSD_THRESHOLD = 0.4
 
 # running parameters
@@ -25,4 +25,6 @@ XTB_CMD = 'xtb'                             # if the xtb is installed in the con
 
 # qm parameters
 QM_CMD = 'g16'
+LEVEL_OF_THEORY = "mPW1PW91/6-31G"
 SOLVENT = 'dimethylsulfoxide'
+ADDITIONAL_PARAMS = 'scf=(xqc,maxconventionalcycles=400) nosymm'

@@ -5,12 +5,14 @@ import pandas as pd
 import psycopg2
 from sqlalchemy import create_engine
 
+from config import *
+
 dbparams = {
-    'dbname': 'nmrtest',
-    'user': 'nmruser',
-    'password': '123456',
-    'host': 'rmg',
-    'port': '5432',
+    'dbname': SQL_DBNAME,
+    'user': SQL_USER,
+    'password': SQL_PASSWORD,
+    'host': SQL_HOST,
+    'port': SQL_PORT,
 }
 
 def initialize_compound_db(ids: List[int],

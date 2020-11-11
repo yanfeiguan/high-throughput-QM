@@ -40,7 +40,11 @@ class QmWorker(object):
         remaining = self.wall_time - (time_now - self.start_time) - buffer
         return remaining.total_seconds()
 
-    def run_qm(self, molblock, solvent='dimethylsulfoxide'):
+    def run_qm(self,
+               molblock,
+               level_of_theory='mPW1PW91/6-31G',
+               additional_params='scf=(xqc,maxconventionalcycles=400) nosymm',
+               solvent='dimethylsulfoxide'):
         """ Given an rdkit.Mol object with an optimized, minimum energy conformer
         ID, write a gaussian input file using openbabel to the scratch folder """
 
@@ -54,10 +58,16 @@ class QmWorker(object):
                 writer.write(mol)
                 writer.close()
 
+                base_head = '#' + level_of_theory + ' nmr=giao'
+                if additional_params is not None:
+                    base_head += ' ' + additional_params
+                if solvent is not None:
+                    base_head += ' ' + 'SCRF=(solvent={})'.format(solvent)
+
                 header1 = [
                     '%MEM={}'.format(self.mem),
                     '%nprocshared={}'.format(self.nprocs),
-                    '#mPW1PW91/6-31G scf=(xqc,maxconventionalcycles=400) nmr=giao nosymm SCRF=(solvent={})'.format(solvent)]
+                    base_head]
 
                 subprocess.run(
                     ['obabel', sdf_file.name, '-O', gjf, '-xk', '\n'.join(header1)])
@@ -86,12 +96,14 @@ class QmWorker(object):
                 nmr = log.NMR
                 scf = log.scf / 27.2114
             else:
+                shutil.move(gjf, project_gjf)
+                shutil.move(scratch_log, project_log)
+                subprocess.run(['gzip', '-f', project_log, project_gjf])
                 raise RuntimeError('Gaussian calculation for NMR failed')
 
             shutil.move(gjf, project_gjf)
             shutil.move(scratch_log, project_log)
             subprocess.run(['gzip', '-f', project_log, project_gjf])
-
         return mol_block, nmr, scf
 
     @staticmethod

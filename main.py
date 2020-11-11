@@ -10,13 +10,14 @@ import numpy as np
 import pandas as pd
 
 from worker import RdkitConformer, XtbOptimizer, QmWorker
+from config import *
 
 dbparams = {
-    'dbname': 'nmrtest',
-    'user': 'nmruser',
-    'password': '123456',
-    'host': 'rmg',
-    'port': '5432',
+    'dbname': SQL_DBNAME,
+    'user': SQL_USER,
+    'password': SQL_PASSWORD,
+    'host': SQL_HOST,
+    'port': SQL_PORT,
 }
 
 R = 0.001987
@@ -135,11 +136,8 @@ class JobWrapper(object):
         qm_mols = []
         for finished, (mol_block, confId) in enumerate(zip(mol_blocks, conformer_ids)):
             try:
-                mol_block, nmr, scf = self.qm_worker.run_qm(mol_block)
-            # for developing only
-            #nmr = [1] * 14
-            #scf = 40
-
+                mol_block, nmr, scf = self.qm_worker.run_qm(mol_block, level_of_theory=LEVEL_OF_THEORY,
+                                                            additional_params=ADDITIONAL_PARAMS, solvent=SOLVENT)
                 qm_mols.append([confId, mol_block, nmr, scf, np.nan, 'finished'])
             except subprocess.TimeoutExpired:
                 break
@@ -269,11 +267,16 @@ class JobWrapper(object):
         else:
             done_qm_df = qm_mols_df
 
+        done_opt_df = done_opt_df.drop(qm_columns + ['cid'], axis=1)
         done_df = done_opt_df.join(done_qm_df.set_index('confid'), on='confid')
         self.update_conformers(done_df, cid)
 
         if timeout:
             self.updated_one_entry(cid, 'timeout')
+            return cid, False
+
+        if 'finished' not in done_df.status_qm.tolist():
+            self.update_one_entry(cid, 'failed', error='no qm calculations normally terminated')
             return cid, False
 
         weighted_nmr, coords = self.postprocess(done_df)
@@ -284,9 +287,22 @@ class JobWrapper(object):
 
 if __name__ == "__main__":
 
-    conformer_generator = RdkitConformer()
-    optimizer = XtbOptimizer()
-    qm_worker = QmWorker()
+    conformer_generator = RdkitConformer(max_conformers=MAX_CONFORMERS,
+                                         min_conformers=MIN_CONFORMERS,
+                                         e_threshold=CONFORMER_E_THRESHOLD,
+                                         rmsd_threshold=CONFORMER_RMSD_THRESHOLD)
+
+    optimizer = XtbOptimizer(xtb_path=XTB_CMD,
+                             scratchdir=SCRATCHDIR,
+                             projectdir=PROJECTDIR,
+                             wall_time=WALLTIME)
+
+    qm_worker = QmWorker(qm_cmd=QM_CMD,
+                         wall_time=WALLTIME,
+                         nprocs=NPROCS,
+                         mem=MEM,
+                         scratchdir=SCRATCHDIR,
+                         projectdir=PROJECTDIR)
 
     job_wrapper = JobWrapper(conformer_generator=conformer_generator,
                              optimizer=optimizer,
