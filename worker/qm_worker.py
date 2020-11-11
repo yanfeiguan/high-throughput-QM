@@ -67,7 +67,17 @@ class QmWorker(object):
 
             env = os.environ.copy()
             env['GAUSS_SCRDIR'] = running_dir
-            subprocess.run(cmd, shell=True, env=env, timeout=self.remaining_wall_time())
+            project_gjf = os.path.join(self.projectdir, '{}.nmr.gjf'.format(name))
+            project_log = os.path.join(self.projectdir, '{}.nmr.log'.format(name))
+
+            try:
+                subprocess.run(cmd, shell=True, env=env, timeout=self.remaining_wall_time())
+            except Exception as e:
+                shutil.move(gjf, project_gjf)
+                shutil.move(scratch_log, project_log)
+                subprocess.run(['gzip', '-f', project_log, project_gjf])
+                raise e
+
             log = G16Log(scratch_log)
             if log.termination:
                 coords = log.coords
@@ -77,9 +87,6 @@ class QmWorker(object):
                 scf = log.scf / 27.2114
             else:
                 raise RuntimeError('Gaussian calculation for NMR failed')
-
-            project_gjf = os.path.join(self.projectdir, '{}.nmr.gjf'.format(name))
-            project_log = os.path.join(self.projectdir, '{}.nmr.log'.format(name))
 
             shutil.move(gjf, project_gjf)
             shutil.move(scratch_log, project_log)
