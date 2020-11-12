@@ -148,5 +148,3 @@ if __name__ == '__main__':
 
     mol_block = Chem.MolToMolBlock(mol)
     E, H, G = optimizer.valid_freq(mol_block)
-
-    print('AAA')

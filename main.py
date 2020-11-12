@@ -107,7 +107,7 @@ class JobWrapper(object):
         optimized_mols = optimized_mols.copy()
         min_E, min_H, min_G = optimized_mols[optimized_mols.status_qm == 'finished'][['e', 'h', 'g']].min().values
         for e, min_e in zip(['e', 'h', 'g'], [min_E, min_H, min_G]):
-            optimized_mols['min_' + e] = optimized_mols[e].apply(lambda x: (x - min_e) * 23.0609)
+            optimized_mols['min_' + e] = optimized_mols[e].apply(lambda x: (x - min_e) * 627.503)
 
         optimized_mols = optimized_mols.sort_values(by='min_g')
         coords = optimized_mols[(optimized_mols.status_qm == 'finished') & (optimized_mols.g == min_G)].iloc[0]['mol_opt']
@@ -219,6 +219,12 @@ class JobWrapper(object):
         conformer_df['nmr'] = conformer_df.nmr.apply(lambda x: float_nmr(x) if x is not None else x)
         return conformer_df
 
+    @staticmethod
+    def filter_opt_conformers(done_opt_df, e_threshold=XTB_CONFORMER_E_THRESHOLD):
+        e_threshold_eh = e_threshold / 627.503
+        e_min = done_opt_df['g'].min()
+        return done_opt_df[done_opt_df.g.apply(lambda x: x - e_min <= e_threshold_eh)]
+
     def run(self):
 
         cid, smiles, status = self.grab_one_entry()
@@ -226,7 +232,6 @@ class JobWrapper(object):
 
         if status == 'initialized':
             mol, conformer_ids = self.conformer_generator.gen_confs(smiles)
-            print(conformer_ids)
             mol.SetProp('_Name', str(cid))
 
             conformers = []
@@ -239,12 +244,13 @@ class JobWrapper(object):
             if timeout:
                 self.update_one_entry(cid, 'timeout')
                 self.update_conformers(done_opt_df, cid)
-                return cid, False
+                return cid, 'timeout'
 
             if 'finished' not in done_opt_df.status_opt.tolist():
                 self.update_one_entry(cid, 'failed', error='no optimized conformers found')
-                return cid, False
+                return cid, 'failed'
 
+            done_opt_df = self.filter_opt_conformers(done_opt_df)
             optimized_mols, conformer_ids = zip(*done_opt_df[done_opt_df.status_opt == 'finished'][['mol_opt', 'confid']].values.tolist())
 
         elif status == 'timeout':
@@ -255,13 +261,15 @@ class JobWrapper(object):
                 conformers, conformer_ids = zip(*conformer_df[conformer_df.status_opt == 'initialized'][['mol_opt', 'confid']].values.tolist())
                 done_opt_df, timeout = self.batch_optimization(conformers, conformer_ids)
                 done_opt_df = pd.concat([optimized_mols_df, done_opt_df])
+                done_opt_df.status_qm = 'initialized'
                 if timeout:
                     self.update_one_entry(cid, 'timeout')
                     self.update_conformers(done_opt_df, cid)
-                    return cid, False
-                done_opt_df.status_qm = 'initialized'
+                    return cid, 'timeout'
             else:
                 done_opt_df = optimized_mols_df
+
+            done_opt_df = self.filter_opt_conformers(done_opt_df)
 
             done_qm_df = done_opt_df[done_opt_df.status_qm != 'initialized'].drop(opt_columns, axis=1)
             optimized_mols, conformer_ids = zip(*done_opt_df[(done_opt_df.status_qm == 'initialized') & (done_opt_df.status_opt == 'finished')][['mol_opt', 'confid']].values.tolist())
@@ -278,17 +286,17 @@ class JobWrapper(object):
         self.update_conformers(done_df, cid)
 
         if timeout:
-            self.updated_one_entry(cid, 'timeout')
-            return cid, False
+            self.update_one_entry(cid, 'timeout')
+            return cid, 'timeout'
 
         if 'finished' not in done_df.status_qm.tolist():
             self.update_one_entry(cid, 'failed', error='no qm calculations normally terminated')
-            return cid, False
+            return cid, 'failed'
 
         weighted_nmr, coords = self.postprocess(done_df)
         self.update_one_entry(cid, 'finished', weighted_nmr, coords)
 
-        return cid, True
+        return cid, 'finished'
                 
 
 if __name__ == "__main__":
@@ -318,7 +326,9 @@ if __name__ == "__main__":
 
     while True:  # Time in days
         try:
-            cid, finished = job_wrapper.run()
-            print(cid, finished)
+            cid, status = job_wrapper.run()
+            print(cid, status)
+            if status == 'timeout':
+                break
         except psycopg2.OperationalError:
             time.sleep(5 + random.uniform(0, 60))

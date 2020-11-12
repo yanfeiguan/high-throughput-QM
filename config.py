@@ -10,7 +10,7 @@ SQL_PORT = '5432'
 # conformer searching parameters
 MIN_CONFORMERS = 10
 MAX_CONFORMERS = 20
-CONFORMER_E_THRESHOLD = 2.5                   # kcal/mol
+CONFORMER_E_THRESHOLD = 2.5                 # kcal/mol
 CONFORMER_RMSD_THRESHOLD = 0.4
 
 # running parameters
@@ -22,6 +22,7 @@ MEM = '35000mb'                             # memory with unit (used in qm_worke
 
 # optimization parameters
 XTB_CMD = 'xtb'                             # if the xtb is installed in the conda environment, just provide the command here (xtb)
+XTB_CONFORMER_E_THRESHOLD = 2.5             # kcal/mol
 
 # Gaussian parameters
 QM_CMD = 'g16'
