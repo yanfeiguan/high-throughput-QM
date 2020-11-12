@@ -75,6 +75,9 @@ A queueing software should be used if you run the workflow on a HPC. The `submit
 You can write your own submitting bash script based on this example.
 
 ## Note
-Due to the complexity of QM calculations and very different configurations of different HPCs, this workflow need to be carefully configured based on your HPC cluster. 
+Due to the complexity of QM calculations and very different configurations of different HPCs, this workflow need to be carefully configured based on your HPC cluster.
+On this repo, this workflow is implemented to run NMR chemical shift calculations though, in principle, you can easily revise this workflow for any QM properties including 
+molecular properties, atomic properties, and bond properties. For new properties, the `worker/file_parser.py` need to be revised to grab the corresponding 
+properties from the Gaussian output file.
  
  
