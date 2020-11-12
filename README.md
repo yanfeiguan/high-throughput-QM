@@ -7,7 +7,7 @@ This repo contains code for high-throughput computations that feature a comprehe
 Dependencies are listed in the `environment.yml`. 
 Important software required are:
 
-###Gaussian
+### Gaussian
 QM package Gaussian is required to run this workflow.  Parameters for the Gaussian calculation need to be provided
 in the `config.py` configure file. Users are responsible to setting the appropriate running environment for Gaussian.
 For setting up the environment on a HPC see later section.
