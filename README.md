@@ -77,6 +77,13 @@ You can write your own submitting bash script based on this example.
 To use this workflow more efficiently, you can submit multiple bash script to run calculations in parallel. 
 Calculations submitted through different bash scripts will act as separate workers, and will not affect each other.
 
+## Timeout and resume
+The workflow is designed that requires minimum user intervention. We understand there is usually a wall time for each job 
+submitted to the HPC cluster. To save the computational resources and to make this workflow as efficient as possible, it would 
+be good to have the workflow resume from where the job was killed in the last run. To leverage this benefit, please specify the `WALLTIME`
+parameter in the `config.py`. The workflow will then monitor the the remaining time of the job, and label the status as "timeout" towards end of the job.
+Other running workers or next run will pick the "timeout" compound for calculation. 
+
 ## Note
 Due to the complexity of QM calculations and very different configurations of different HPCs, this workflow need to be carefully configured based on your HPC cluster.
 On this repo, this workflow is implemented to run NMR chemical shift calculations though, in principle, you can easily revise this workflow for any QM properties including 
