@@ -74,6 +74,9 @@ $ python main.py
 A queueing software should be used if you run the workflow on a HPC. The `submit_nmr.sh` provides an example of submitting the calculation to the queue through Slurm.
 You can write your own submitting bash script based on this example.
 
+To use this workflow more efficiently, you can submit multiple bash script to run calculations in parallel. 
+Calculations submitted through different bash scripts will act as separate workers, and will not affect each other.
+
 ## Note
 Due to the complexity of QM calculations and very different configurations of different HPCs, this workflow need to be carefully configured based on your HPC cluster.
 On this repo, this workflow is implemented to run NMR chemical shift calculations though, in principle, you can easily revise this workflow for any QM properties including 
