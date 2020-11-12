@@ -207,10 +207,16 @@ class JobWrapper(object):
 
     @staticmethod
     def grab_conformers(cid):
+
+        def float_nmr(nmr):
+            return [float(x) for x in nmr]
+
         with psycopg2.connect(**dbparams) as conn:
             sql = "SELECT * FROM conformers where cid = {}".format(cid)
 
             conformer_df = pd.read_sql_query(sql, conn)
+
+        conformer_df['nmr'] = conformer_df.nmr.apply(lambda x: float_nmr(x) if x is not None else x)
         return conformer_df
 
     def run(self):
@@ -249,16 +255,17 @@ class JobWrapper(object):
                 conformers, conformer_ids = zip(*conformer_df[conformer_df.status_opt == 'initialized'][['mol_opt', 'confid']].values.tolist())
                 done_opt_df, timeout = self.batch_optimization(conformers, conformer_ids)
                 done_opt_df = pd.concat([optimized_mols_df, done_opt_df])
-
                 if timeout:
                     self.update_one_entry(cid, 'timeout')
                     self.update_conformers(done_opt_df, cid)
                     return cid, False
+                done_opt_df.status_qm = 'initialized'
             else:
                 done_opt_df = optimized_mols_df
 
             done_qm_df = done_opt_df[done_opt_df.status_qm != 'initialized'].drop(opt_columns, axis=1)
             optimized_mols, conformer_ids = zip(*done_opt_df[(done_opt_df.status_qm == 'initialized') & (done_opt_df.status_opt == 'finished')][['mol_opt', 'confid']].values.tolist())
+            done_opt_df = done_opt_df.drop(qm_columns + ['cid'], axis=1)
 
         qm_mols_df, timeout = self.batch_qm(optimized_mols, conformer_ids)
 
@@ -267,7 +274,6 @@ class JobWrapper(object):
         else:
             done_qm_df = qm_mols_df
 
-        done_opt_df = done_opt_df.drop(qm_columns + ['cid'], axis=1)
         done_df = done_opt_df.join(done_qm_df.set_index('confid'), on='confid')
         self.update_conformers(done_df, cid)
 

@@ -23,7 +23,7 @@ MEM = '35000mb'                             # memory with unit (used in qm_worke
 # optimization parameters
 XTB_CMD = 'xtb'                             # if the xtb is installed in the conda environment, just provide the command here (xtb)
 
-# qm parameters
+# Gaussian parameters
 QM_CMD = 'g16'
 LEVEL_OF_THEORY = "mPW1PW91/6-31G"
 SOLVENT = 'dimethylsulfoxide'
