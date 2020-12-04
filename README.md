@@ -7,7 +7,7 @@ This repo contains code for high-throughput computations that feature a comprehe
 Dependencies are listed in the `environment.yml`. 
 Important software required are:
 
-###Gaussian
+### Gaussian
 QM package Gaussian is required to run this workflow.  Parameters for the Gaussian calculation need to be provided
 in the `config.py` configure file. Users are responsible to setting the appropriate running environment for Gaussian.
 For setting up the environment on a HPC see later section.
@@ -89,5 +89,9 @@ Due to the complexity of QM calculations and very different configurations of di
 On this repo, this workflow is implemented to run NMR chemical shift calculations though, in principle, you can easily revise this workflow for any QM properties including 
 molecular properties, atomic properties, and bond properties. For new properties, the `worker/file_parser.py` need to be revised to grab the corresponding 
 properties from the Gaussian output file.
+
+## Ackonwledgement
+
+This workflow is derived from Peter St. John's original workflow for BDE calculations: https://github.com/pstjohn/bde
  
  
