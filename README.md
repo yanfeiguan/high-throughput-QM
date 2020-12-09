@@ -12,13 +12,13 @@ QM package Gaussian is required to run this workflow.  Parameters for the Gaussi
 in the `config.py` configure file. Users are responsible to setting the appropriate running environment for Gaussian.
 For setting up the environment on a HPC see later section.
 
-## GFN2-xtb
+### GFN2-xtb
 [GFN2-xtb](https://github.com/grimme-lab/xtb) is used for geometry optimization. 
 It can be either installed on your machine by the admin, or through a conda environment.
 For conda installation see later section.
  
  
-## PostgreSQL
+### PostgreSQL
 The SQL type databse that holds all data. To run the workflow, a PostgreSQL  service must be started, and the database
 information must be provided in the `config.py` configure file, SQL parameters section.
 
